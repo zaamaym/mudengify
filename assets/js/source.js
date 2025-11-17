@@ -148,42 +148,12 @@ document.addEventListener("DOMContentLoaded", () => {
       //   🖼️ Gambar
       if (["png", "jpg", "gif", "jpeg"].includes(ext)) {
         this.content.innerHTML = `
-  <div class="img-zoom-container">
-    <img id="zoomImg" src="${path}" alt="${name}">
-  </div>
-  <p style="text-align:center;color:#ccc;margin-top:8px;">${name}</p>
-`;
-
-    const img = document.getElementById("zoomImg");
-    let scale = 1;
-    let posX = 0, posY = 0;
-    let dragging = false, startX, startY;
-
-    img.style.transformOrigin = "center center";
-
-    img.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      scale += e.deltaY * -0.001;
-      scale = Math.min(Math.max(1, scale), 4);
-      img.style.transform = `scale(${scale}) translate(${posX}px, ${posY}px)`;
-    });
-
-    img.addEventListener("mousedown", (e) => {
-      dragging = true;
-      startX = e.clientX - posX;
-      startY = e.clientY - posY;
-    });
-
-    window.addEventListener("mouseup", () => dragging = false);
-
-    window.addEventListener("mousemove", (e) => {
-      if (!dragging) return;
-      posX = e.clientX - startX;
-      posY = e.clientY - startY;
-      img.style.transform = `scale(${scale}) translate(${posX}px, ${posY}px)`;
-    });
-
-      }
+        <div class="img-viewer">
+          <img src="${path}" alt="${name}">
+          <p style="text-align:center;color:#ccc;margin-top:8px;">${name}</p>
+        </div>`;
+        return;
+    }
 
       // 🎵 Audio
       if (["mp3", "ogg", "wav"].includes(ext)) {
@@ -231,8 +201,8 @@ document.addEventListener("DOMContentLoaded", () => {
         "token.css": "assets/css/token.css",
       },
       "js/": {
-        "dataakun/": {
-          "accounts.js": "assets/dataakun/accounts.js"
+        "dataakun/":{
+          "accounts.js":"assets/js/dataakun/accounts.js",
         },
         "main.js": "assets/js/main.js",
         "home.js": "assets/js/home.js",
@@ -291,4 +261,3 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
 });
-
