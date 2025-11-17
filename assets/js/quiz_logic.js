@@ -38,8 +38,16 @@ function initQuiz(QUIZ_DATA) {
   const questions = QUIZ_DATA;
   let userAnswers = questions.map(() => ({ answer: null, isFlagged: false }));
   let current = 0;
-  let reviewMode = false;
-
+  const checktoken = localStorage.getItem(`mudengify_token`) || `false`;
+  const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+  if(quizdata.status === 'finished'){
+    alert("⚠️ Anda sudah menyelesaikan ujian ini.");
+    location.assign('submit.html'); 
+  }
+  if(checktoken === 'true'){
+    alert("Silakan masukkan token terlebih dahulu!");
+    location.assign('token.html');
+  }
   // === 3️⃣ Anti-cheat Proteksi ===
   document.addEventListener('contextmenu', e => e.preventDefault());
   document.addEventListener('selectstart', e => e.preventDefault());
@@ -48,14 +56,16 @@ function initQuiz(QUIZ_DATA) {
 
   // === 4️⃣ State Management ===
   function saveState() {
-    const UserAns = `mudengify_answer_${user.username}_${user.mapel}`;
-    localStorage.setItem(UserAns, JSON.stringify(userAnswers));
+    const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+    quizdata.answers = userAnswers;
+    localStorage.setItem(`mudengify_data_${user.username}_${user.mapel}`, JSON.stringify(quizdata));
   }
 
   function loadState() {
-    const UserAns = `mudengify_answer_${user.username}_${user.mapel}`;
-    const saved = localStorage.getItem(UserAns);
-    if (saved) userAnswers = JSON.parse(saved);
+    const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+    if(quizdata.progress === 'in_progress'){
+      userAnswers = quizdata.answers;
+    }
   }
 
   // === 5️⃣ Progress Bar ===
@@ -194,7 +204,7 @@ if (current === questions.length - 1) {
 const popup = document.getElementById("loginAlert");
 const popupMsg = document.getElementById("popupMessage");
 const popupProgress = document.getElementById("popupProgress");
-let popupTimer, progressTimer;
+let popupTimer;
 
 function animateProgress(duration = 3000) {
   popupProgress.style.transition = "none";
@@ -347,99 +357,123 @@ function hidePopup() {
     updateQuestionList();
     updateProgress();
   };
-  function isDemoUser() {
-  const u = JSON.parse(localStorage.getItem('mudengify_user') || "null");
-  return u && u.from === 'demo';
-}
-function serverPost(path, payload) {
-  return fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }).then(r => r.json());
-}
 
   // === 🔟 Hitung Nilai ===
-  function calculateResult() {
-    let correct = 0,
+ function calculateResult() {
+  let correct = 0,
       wrong = 0,
       unanswered = 0;
 
-    questions.forEach((q, i) => {
-      const ua = userAnswers[i].answer;
+  questions.forEach((q, i) => {
+    const ua = userAnswers[i].answer;
 
-      // Multiple
-      if (q.type === 'multiple') {
-        if (!ua) return unanswered++;
-        const correctIndex = q.options.indexOf(q.answer[0]);
-        const correctLetter = String.fromCharCode(65 + correctIndex);
-        ua === correctLetter ? correct++ : wrong++;
+    // === Multiple Choice ===
+    if (q.type === "multiple") {
+      if (ua === null || ua === undefined || ua === "") {
+        unanswered++;
+        return;
       }
 
-      // Multianswer
-      else if (q.type === 'multianswer') {
-        if (!ua || ua.length === 0) return unanswered++;
-        const expected = (q.answer || []).map(String);
-        const given = ua.map(String);
-        const allCorrect = expected.every(e => given.includes(e));
-        const noExtra = given.every(g => expected.includes(g));
-        allCorrect && noExtra ? correct++ : wrong++;
+      // User answer: bisa huruf "A" atau index
+      const userIndex = typeof ua === "string"
+        ? ua.toUpperCase().charCodeAt(0) - 65
+        : ua;
+
+      const correctIndex = q.options.indexOf(q.answer[0]);
+
+      userIndex === correctIndex ? correct++ : wrong++;
+    }
+
+    // === Multi Answer ===
+    else if (q.type === "multianswer") {
+      if (!Array.isArray(ua) || ua.length === 0) {
+        unanswered++;
+        return;
       }
 
-      // True/False Group
-      else if (q.type === 'truefalsegroup') {
-        if (!ua || ua.length === 0 || ua.some(x => !x)) return unanswered++;
-        const allCorrect = q.statements.every((st, idx) => ua[idx] === st.answer);
-        allCorrect ? correct++ : wrong++;
+      // Normalize user answer ke index
+      const given = ua.map(x =>
+        typeof x === "string"
+          ? x.toUpperCase().charCodeAt(0) - 65
+          : x
+      );
+
+      // Normalize correct answer ke index
+      const expected = q.answer.map(ans =>
+        q.options.indexOf(ans)
+      );
+
+      const allCorrect = expected.every(e => given.includes(e));
+      const noExtra = given.every(g => expected.includes(g));
+
+      allCorrect && noExtra ? correct++ : wrong++;
+    }
+
+    // === True/False Group ===
+    // === True/False Group ===
+    else if (q.type === "truefalsegroup") {
+      if (!Array.isArray(ua) || ua.length === 0) {
+        unanswered++;
+        return;
       }
-    });
 
-    const total = questions.length;
-    const score = (correct / total) * 100; // dinamis
-    const percent = Math.round(score);
+      // cek kalau masih ada jawaban null atau kosong
+      if (ua.some(x => x === null || x === "")) {
+        unanswered++;
+        return;
+      }
 
-    return { total, correct, wrong, unanswered, score, percent };
-  }
+      // normalizer agar "sesuai" == "Sesuai" == " sesuai "
+      const norm = s => String(s).trim().toLowerCase();
+
+      const allCorrect = q.statements.every(
+        (st, idx) => norm(ua[idx]) === norm(st.answer)
+      );
+
+      allCorrect ? correct++ : wrong++;
+    }
+
+  });
+
+  const total = questions.length;
+  const score = (correct / total) * 100;
+  const percent = Math.round(score);
+
+  return { total, correct, wrong, unanswered, score, percent };
+}
+
   function updateStatus(status) {
-  const key = `mudengify_status_${user.username}_${user.mapel}`;
-  localStorage.setItem(key, status);
+    const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+    quizdata.status = status;
+    localStorage.setItem(`mudengify_data_${user.username}_${user.mapel}`, JSON.stringify(quizdata));
   }
   // === 11️⃣ Akhiri Kuis ===
   function endQuiz() {
     const result = calculateResult();
-    const timerKey = `mudengify_timer_${user.username}_${user.mapel}`;
-    const UserAns = `mudengify_answer_${user.username}_${user.mapel}`;
-    const Res = `mudengify_result_${user.username}_${user.mapel}`;
-    localStorage.removeItem(timerKey);
-    localStorage.setItem(Res, JSON.stringify(result));
-    localStorage.setItem(UserAns, JSON.stringify(userAnswers));
-    updateStatus('finished');
-    localStorage.setItem('mudengify_from_quiz', 'true'); // flag asal halaman
-    if (!isDemoUser()) {
-  const user = JSON.parse(localStorage.getItem('mudengify_user') || "null");
-  if (user) {
-    serverPost('/api/save_result.php', { username: user.username, mapel: user.mapel, result, answers: userAnswers })
-      .catch(()=>{ /* ignore */ });
-  }
-}
+    const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+    quizdata.answers = userAnswers;
+    quizdata.result = result;
+    localStorage.setItem(`mudengify_data_${user.username}_${user.mapel}`, JSON.stringify(quizdata));
+    updateStatus("finished");
     location.assign('submit.html');
   }
 
 function startTimer() {
   const user = JSON.parse(localStorage.getItem('mudengify_user') || "null");
-  const time = Number(localStorage.getItem(`mudengify_${user.mapel}`));
-  const DURATION_MS = time * 60 * 1000; // 90 menit total
+  const mapelData = JSON.parse(localStorage.getItem(`mudengify_${user.mapel}`));
+  const DURATION_MS = mapelData.duration * 60 * 1000; // 90 menit total
   const LOCK_DURATION_MS = 3 * 60 * 1000; // 3 menit tombol dikunci
   const el = document.getElementById('countdown');
   const submitBtn = document.getElementById('submit-btn');
   if (!el || !submitBtn) return;
   if (!user) return;
-  const key = `mudengify_timer_${user.username}_${user.mapel}`;
+  const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
 
-  let startTime = localStorage.getItem(key);
+  let startTime = quizdata.timer;
   if (!startTime) {
     startTime = Date.now();
-    localStorage.setItem(key, startTime);
+    quizdata.timer = startTime;
+    localStorage.setItem(`mudengify_data_${user.username}_${user.mapel}`, JSON.stringify(quizdata));
   } else {
     startTime = Number(startTime);
   }
@@ -527,16 +561,11 @@ function startApp() {
 (function markInProgress() {
   const user = JSON.parse(localStorage.getItem('mudengify_user') || "null");
   if (!user) return;
-  const key = `mudengify_status_${user.username}_${user.mapel}`;
-  localStorage.setItem(key, 'in_progress');
-
-  if (!isDemoUser()) {
-    // beri tahu server bahwa user mulai ujian
-    serverPost('/api/mark_in_progress.php', { username: user.username, mapel: user.mapel })
-      .catch(()=>{ /* ignore network */ });
-  }
+  const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+  quizdata.status = 'in_progress';
+  localStorage.setItem(`mudengify_data_${user.username}_${user.mapel}`, JSON.stringify(quizdata));
 })();
-
+  
     // Logout
     // === 🔐 Logout handler ===
     // Logout
@@ -572,28 +601,15 @@ document.getElementById('logout-btn').addEventListener('click', () => {
         return;
     }
     if (user) {
-      const key = `mudengify_status_${user.username}_${user.mapel}`;
-      const UserAns = `mudengify_answer_${user.username}_${user.mapel}`;
-      const Res = `mudengify_result_${user.username}_${user.mapel}`;
-      // hanya tandai finished (soal selesai otomatis)
-      localStorage.setItem(key, 'finished');
-      // simpan hasil & jawaban ke localStorage
-      localStorage.setItem(UserAns, JSON.stringify(userAnswers));
-      const result = calculateResult(); // fungsi sudah ada
-      localStorage.setItem(Res, JSON.stringify(result));
-      // 🧹 Hapus data timer agar reset total
-      const timerKey = `mudengify_timer_${user.username}_${user.mapel}`;
-      localStorage.removeItem(timerKey);
-      // jika akun server: kirim hasil ke server agar server juga menyimpan
-      if (!isDemoUser()) {
-        serverPost('/api/save_result.php', {
-          username: user.username,
-          mapel: user.mapel,
-          result,
-          answers: userAnswers
-        }).catch(()=>{/* ignore */});
-      }
+      const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+      quizdata.answers = userAnswers;
+      const result = calculateResult();
+      quizdata.result = result;
+      quizdata.status = 'finished';
+      localStorage.setItem(`mudengify_data_${user.username}_${user.mapel}`, JSON.stringify(quizdata))
     }
+    localStorage.removeItem('mudengify_from_quiz');
+    localStorage.removeItem('tokenData');
     localStorage.removeItem('mudengify_user');
     location.assign('index.html');
     modal.remove();

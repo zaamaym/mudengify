@@ -1,6 +1,11 @@
 // SOURCE.js
 document.addEventListener("DOMContentLoaded", () => {
-
+  const checkuser = JSON.parse(localStorage.getItem('mudengify_user') || "null");
+  if(checkuser){
+    alert('⚠️ Anda sudah login. Logout otomatis...');
+    localStorage.removeItem('mudengify_user');
+    location.assign('index.html');
+  }
   class Finder {
     constructor(config) {
       this.panel = config.panel;
@@ -56,13 +61,16 @@ document.addEventListener("DOMContentLoaded", () => {
         item.className = "finder-item";
         const isFolder = key.endsWith("/");
         const icon = isFolder
-          ? "📁"
-          : key.endsWith(".html") ? "🌐"
-          : key.endsWith(".js") ? "🧠"
-          : key.endsWith(".css") ? "🎨"
-          : key.match(/\.(png|jpg|gif|jpeg)$/) ? "🖼️"
-          : key.match(/\.(mp3|ogg|wav)$/) ? "🎵"
-          : "📄";
+  ? "📁"
+  : key.match(/\.(png|jpg|gif|jpeg|webp)$/) ? "🖼️"
+  : key.match(/\.(mp3|ogg|wav)$/) ? "🎵"
+  : key.match(/\.(mp4|webm|mov|mkv|ogg)$/) ? "🎬"
+  : key.endsWith(".pdf") ? "📕"
+  : key.endsWith(".html") ? "🌐"
+  : key.endsWith(".js") ? "🧠"
+  : key.endsWith(".css") ? "🎨"
+  : "📄";
+
 
         item.innerHTML = `${icon}<span>${key}</span>`;
         item.onclick = () => {
@@ -102,55 +110,181 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // === 📄 Muat file ===
-    async loadFile(name, path) {
-      this.body.classList.add("file-open");
-      this.pathDisplay.textContent = `${this.currentPath.join(" / ")} / ${name}`;
-      this.content.innerHTML = `<div class='loading'>⏳ Memuat file...</div>`;
+    // === 📄 Muat file ===
+async loadFile(name, path) {
+  this.body.classList.add("file-open");
+  this.pathDisplay.textContent = `${this.currentPath.join(" / ")} / ${name}`;
+  this.content.innerHTML = `<div class='loading'>⏳ Memuat file...</div>`;
 
-      const ext = name.split(".").pop().toLowerCase();
+  const ext = name.split(".").pop().toLowerCase();
 
-      // 🖼️ Gambar
-      if (["png", "jpg", "gif", "jpeg"].includes(ext)) {
-        this.content.innerHTML = `
-          <div class="img-viewer">
-            <img src="${path}" alt="${name}">
-            <p style="text-align:center;color:#ccc;margin-top:8px;">${name}</p>
-          </div>`;
-        return;
-      }
+  // =============================
+  // 🖼️ IMAGE VIEWER (Zoom + Drag)
+  // =============================
+  if (["png", "jpg", "gif", "jpeg", "webp"].includes(ext)) {
 
-      // 🎵 Audio
-      if (["mp3", "ogg", "wav"].includes(ext)) {
-        this.content.innerHTML = `
-          <div style="text-align:center; padding:20px;">
-            <p style="color:#ccc;">${name}</p>
-            <audio controls style="width:90%; max-width:600px;">
-              <source src="${path}" type="audio/${ext}">
-              Browser kamu tidak mendukung pemutar audio.
-            </audio>
-          </div>`;
-        return;
-      }
+    this.content.innerHTML = `
+      <div class="img-viewer-zoom">
+        <img id="zoomImg" src="${path}" alt="${name}">
+        <p style="text-align:center;color:#ccc;margin-top:8px;">${name}</p>
+      </div>
+    `;
 
-      // 📜 File text
-      try {
-        const res = await fetch(path);
-        if (!res.ok) throw new Error("Gagal fetch file");
-        const text = await res.text();
+    const img = document.getElementById("zoomImg");
+    let scale = 1;
+    let pos = { x: 0, y: 0 };
+    let dragging = false;
+    let start = { x: 0, y: 0 };
 
-        const lang = ext === "js" ? "javascript" :
-                     ext === "css" ? "css" :
-                     ext === "html" ? "html" : "plaintext";
+    // zoom
+    this.content.onwheel = (e) => {
+      e.preventDefault();
+      scale += e.deltaY * -0.001;
+      scale = Math.min(Math.max(0.5, scale), 5);
+      img.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${scale})`;
+    };
 
-        this.content.innerHTML = `<pre><code id="codeContent" class="language-${lang}"></code></pre>`;
-        const codeContent = document.getElementById("codeContent");
-        codeContent.textContent = text;
-        hljs.highlightElement(codeContent);
-      } catch (err) {
-        this.content.innerHTML = `<pre><code class="language-plaintext">// ⚠️ Gagal memuat file: ${err.message}</code></pre>`;
-      }
-    }
+    // mouse drag start
+    img.onmousedown = (e) => {
+      dragging = true;
+      start.x = e.clientX - pos.x;
+      start.y = e.clientY - pos.y;
+    };
+
+    // drag move
+    window.onmousemove = (e) => {
+      if (!dragging) return;
+      pos.x = e.clientX - start.x;
+      pos.y = e.clientY - start.y;
+      img.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${scale})`;
+    };
+
+    window.onmouseup = () => (dragging = false);
+
+    return;
   }
+
+  // =============================
+  // 🎵 AUDIO PLAYER
+  // =============================
+  if (["mp3", "ogg", "wav"].includes(ext)) {
+    this.content.innerHTML = `
+      <div style="text-align:center; padding:20px;">
+        <p style="color:#ccc;">${name}</p>
+        <audio controls style="width:90%; max-width:600px;">
+          <source src="${path}" type="audio/${ext}">
+        </audio>
+      </div>
+    `;
+    return;
+  }
+
+  // =============================
+  // 🎬 VIDEO PLAYER
+  // =============================
+  if (["mp4", "webm", "mov", "mkv", "ogg"].includes(ext)) {
+    this.content.innerHTML = `
+      <div style="text-align:center; padding:15px;">
+        <video controls style="max-width:100%; border-radius:10px;">
+          <source src="${path}" type="video/${ext}">
+        </video>
+        <p style="color:#ccc;">${name}</p>
+      </div>
+    `;
+    return;
+  }
+
+  // =============================
+  // 📕 PDF VIEWER + FULLSCREEN
+  // =============================
+  if (ext === "pdf") {
+    this.content.innerHTML = `
+      <div class="pdf-view-container">
+        <div class="pdf-toolbar">
+          <button id="pdfPrev">⬅️</button>
+          <span id="pdfPageInfo">1 / ?</span>
+          <button id="pdfNext">➡️</button>
+          <button id="pdfZoomOut">➖</button>
+          <button id="pdfZoomIn">➕</button>
+          <button id="pdfFullscreen">⛶ Fullscreen</button>
+        </div>
+        <canvas id="pdfCanvas"></canvas>
+      </div>
+    `;
+
+    let pdfDoc = null;
+    let pageNum = 1;
+    let scale = 1.2;
+    const canvas = document.getElementById("pdfCanvas");
+    const ctx = canvas.getContext("2d");
+
+    pdfjsLib.getDocument(path).promise.then((doc) => {
+      pdfDoc = doc;
+      document.getElementById("pdfPageInfo").textContent = `1 / ${pdfDoc.numPages}`;
+      renderPage(pageNum);
+    });
+
+    const renderPage = (num) => {
+      pdfDoc.getPage(num).then((page) => {
+        const viewport = page.getViewport({ scale });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        page.render({ canvasContext: ctx, viewport });
+      });
+    };
+
+    document.getElementById("pdfPrev").onclick = () => {
+      if (pageNum > 1) pageNum--;
+      document.getElementById("pdfPageInfo").textContent = `${pageNum} / ${pdfDoc.numPages}`;
+      renderPage(pageNum);
+    };
+
+    document.getElementById("pdfNext").onclick = () => {
+      if (pageNum < pdfDoc.numPages) pageNum++;
+      document.getElementById("pdfPageInfo").textContent = `${pageNum} / ${pdfDoc.numPages}`;
+      renderPage(pageNum);
+    };
+
+    document.getElementById("pdfZoomIn").onclick = () => {
+      scale = Math.min(scale + 0.2, 4);
+      renderPage(pageNum);
+    };
+
+    document.getElementById("pdfZoomOut").onclick = () => {
+      scale = Math.max(scale - 0.2, 0.5);
+      renderPage(pageNum);
+    };
+
+    document.getElementById("pdfFullscreen").onclick = () => {
+      canvas.requestFullscreen?.();
+    };
+
+    return;
+  }
+
+  // =============================
+  // 📜 TEXT FILE (JS/CSS/HTML/etc.)
+  // =============================
+  try {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error("Gagal memuat file");
+    const text = await res.text();
+
+    const lang =
+      ext === "js" ? "javascript" :
+      ext === "css" ? "css" :
+      ext === "html" ? "html" : "plaintext";
+
+    this.content.innerHTML = `<pre><code id="codeContent" class="language-${lang}"></code></pre>`;
+    const codeContent = document.getElementById("codeContent");
+    codeContent.textContent = text;
+    hljs.highlightElement(codeContent);
+
+  } catch (err) {
+    this.content.innerHTML = `<pre><code>// ⚠️ Error: ${err.message}</code></pre>`;
+  }
+}
+
 
   // === 📁 Data struktur file ===
   const files = {

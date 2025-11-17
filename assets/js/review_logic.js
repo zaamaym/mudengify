@@ -33,15 +33,15 @@ function initReview(QUIZ_DATA){
   // ---------------------------
   // 2) Ambil data utama dari localStorage
   // ---------------------------
-  const user = JSON.parse(localStorage.getItem('mudengify_user') || "null");
-  const Res = `mudengify_result_${user.username}_${user.mapel}`;
-  const UserAns = `mudengify_answer_${user.username}_${user.mapel}`;
-  const result = JSON.parse(localStorage.getItem(Res));
-  const userAnswers = JSON.parse(localStorage.getItem(UserAns) || '[]');
+  let user = JSON.parse(localStorage.getItem('mudengify_user') || "null");
+  if(user.from === 'admin') user = JSON.parse(localStorage.getItem('mudengify_admin_view') || "null");
+  const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+  const result = quizdata.result;
+  const userAnswers = quizdata.answers || [];
   const questions = typeof QUIZ_DATA !== "undefined" ? QUIZ_DATA : [];
 
   let current = 0;
-
+      
   if (!user) {
     alert('Data pengguna tidak ditemukan. Silakan login ulang.');
     location.assign('index.html');
@@ -53,7 +53,7 @@ function initReview(QUIZ_DATA){
     location.assign('submit.html');
     return;
   }
-
+  
   if (!questions.length) {
     document.getElementById("question-area").innerHTML = `
       <div class="card" style="text-align:center; padding:24px;">
@@ -74,45 +74,80 @@ function initReview(QUIZ_DATA){
     });
   }
 
-  function normalizeTF(str = "") {
-    return str.toLowerCase()
-      .replace(/\s+/g, ' ')
-      .replace("benar", "true")
-      .replace("salah", "false")
-      .replace("sesuai", "true")
-      .replace("tidak sesuai", "false")
-      .replace("tepat", "true")
-      .replace("tidak tepat", "false")
-      .replace("ya", "true")
-      .replace("tidak", "false")
-      .trim();
+  // Normalizer untuk True/False Group
+function normalizeTF(str = "") {
+  const s = String(str).toLowerCase().trim();
+
+  // urutkan dari frasa panjang → pendek
+  if (/^tidak sesuai$/.test(s)) return "false";
+  if (/^tidak tepat$/.test(s)) return "false";
+  if (/^tidak benar$/.test(s)) return "false";
+  if (/^tidak$/.test(s)) return "false";
+
+  if (/^sesuai$/.test(s)) return "true";
+  if (/^tepat$/.test(s)) return "true";
+  if (/^benar$/.test(s)) return "true";
+  if (/^ya$/.test(s)) return "true";
+
+  return s; 
+}
+
+// === UNIVERSAL CHECK ANSWER ===
+function checkAnswer(q, ua) {
+  if (!q) return false;
+
+  // ==========================
+  // 1) MULTIPLE CHOICE
+  // ==========================
+  if (q.type === "multiple") {
+    if (ua === null || ua === undefined || ua === "") return false;
+
+    // ubah userAnswer jadi index (boleh huruf / index)
+    const userIndex = typeof ua === "string"
+      ? ua.toUpperCase().charCodeAt(0) - 65
+      : ua;
+
+    const correctIndex = q.options.indexOf(q.answer?.[0]);
+
+    return userIndex === correctIndex;
   }
 
-  function checkAnswer(q, ua) {
-    if (!q) return false;
+  // ==========================
+  // 2) MULTI ANSWER (CHECKBOX)
+  // ==========================
+  if (q.type === "multianswer") {
+    if (!Array.isArray(ua)) return false;
 
-    if (q.type === 'multiple') {
-      const correctIndex = q.options.indexOf(q.answer?.[0]);
-      const correctLetter = String.fromCharCode(65 + correctIndex);
-      return ua === correctLetter;
-    }
+    // expected → convert string → index
+    const expected = q.answer.map(str => q.options.indexOf(str));
 
-    if (q.type === 'multianswer') {
-      const expected = (q.answer || []).map(String);
-      const given = ua || [];
-      return expected.every(e => given.includes(e)) &&
-             given.every(g => expected.includes(g));
-    }
+    // given → convert index / huruf
+    const given = ua.map(val =>
+      typeof val === "string"
+        ? val.toUpperCase().charCodeAt(0) - 65
+        : val
+    );
 
-    if (q.type === 'truefalsegroup') {
-      if (!ua || ua.length === 0) return false;
-      return q.statements.every((st, idx) =>
-        normalizeTF(ua[idx]) === normalizeTF(st.answer)
-      );
-    }
+    const allCorrect = expected.every(e => given.includes(e));
+    const noExtra = given.every(g => expected.includes(g));
 
-    return false;
+    return allCorrect && noExtra;
   }
+
+  // ==========================
+  // 3) TRUE / FALSE GROUP
+  // ==========================
+  if (q.type === "truefalsegroup") {
+    if (!Array.isArray(ua) || ua.length === 0) return false;
+
+    return q.statements.every((st, idx) =>
+      normalizeTF(ua[idx]) === normalizeTF(st.answer)
+    );
+  }
+
+  // default fallback
+  return false;
+}
 
   // ---------------------------
   // 4) Render Soal

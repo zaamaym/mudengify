@@ -11,11 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------------------------
   // 2) Ambil data hasil & user dari localStorage
   // ---------------------------
-  const user = JSON.parse(localStorage.getItem('mudengify_user') || 'null');
-  const Res = `mudengify_result_${user.username}_${user.mapel}`;
-  const namapel =  localStorage.getItem(`mudengify_mapel_${user.mapel}`);
-  const result = JSON.parse(localStorage.getItem(Res));
-
+  let user = JSON.parse(localStorage.getItem('mudengify_user') || 'null');
+  if(user.from === "admin"){
+    user = JSON.parse(localStorage.getItem('mudengify_admin_view') || 'null');
+  }
+  const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+  const datamapel = JSON.parse(localStorage.getItem(`mudengify_${user.mapel}` || "{}"));
+  const result = quizdata.result;
+  const namapel =  datamapel.nama;
   if (!user || !user.username || !user.mapel) {
     alert('⚠️ Anda belum login atau data user tidak lengkap.');
     location.assign('index.html');
@@ -162,9 +165,10 @@ function hidePopup() {
   // ---------------------------
   if (reviewBtn) {
     reviewBtn.addEventListener('click', (e) => {
-      const user = JSON.parse(localStorage.getItem('mudengify_user') || "null");
-      const Res = `mudengify_result_${user.username}_${user.mapel}`;
-      const r = JSON.parse(localStorage.getItem(Res));
+      let user = JSON.parse(localStorage.getItem('mudengify_user') || "null");
+      if(user.from === 'admin') user = JSON.parse(localStorage.getItem('mudengify_admin_view') || "null");
+      const quizData = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+      const r = quizData.result;
       if (!r) {
         e.preventDefault();
         alert('⚠️ Hasil ujian tidak ditemukan.');
@@ -238,7 +242,15 @@ function hidePopup() {
   // 8) Logout handling (sinkron dengan sistem)
   // ---------------------------
   if (logoutBtn) {
+    const user = JSON.parse(localStorage.getItem('mudengify_user'));
+    if(user.from === 'admin') logoutBtn.textContent = "kembali";
+
   logoutBtn.addEventListener('click', async () => {
+    if(user.from === 'admin'){
+      localStorage.removeItem('mudengify_admin_view');
+      location.assign('admin.html');
+      return;
+    }
     const modal = document.createElement('div');
     modal.className = 'logout-modal';
     modal.innerHTML = `
@@ -269,14 +281,9 @@ function hidePopup() {
         modal.remove();
         return;
       }
-      if (user) {
-        const key = `mudengify_status_${user.username}_${user.mapel}`;
-        localStorage.removeItem(key);
-      }
-      const timerKey = `mudengify_timer_${user.username}_${user.mapel}`;
-        localStorage.removeItem(timerKey);
-        localStorage.removeItem('mudengify_user');
-        location.assign('index.html');
+      localStorage.removeItem('tokenData');
+      localStorage.removeItem('mudengify_user');
+      location.assign('index.html');
       modal.remove();
     };
   });
@@ -455,14 +462,22 @@ if (shareBtn) {
 // 12) Reset ujian
 // ---------------------------
 const resetBtn = document.getElementById('resetExamBtn');
+
+// ambil user sekali saja
+const currentUser = JSON.parse(localStorage.getItem('mudengify_user') || "null");
+
 if (resetBtn) {
+  if (currentUser.from !== "admin") {
+      resetBtn.style.display = "none";
+  }
   resetBtn.addEventListener('click', async () => {
+    // kalau admin → modal konfirmasi
     const modal = document.createElement('div');
     modal.className = 'reset-modal';
     modal.innerHTML = `
       <div class="reset-backdrop"></div>
       <div class="reset-panel card">
-      <span class="close-btn">&times;</span>
+        <span class="close-btn">&times;</span>
         <h3>Reset Ujian</h3>
         <hr style="margin: 8px 0; opacity: 1;" />
         <p>Anda yakin akan menghapus data ujian? Data Anda akan hilang!</p>
@@ -472,30 +487,17 @@ if (resetBtn) {
         </div>
       </div>`;
     document.body.appendChild(modal);
-    modal.querySelector('.close-btn').onclick = () => modal.remove();
-    modal.querySelector('#resetCancel').onclick = () => modal.remove();
+
+    modal.querySelector('.close-btn').onclick =
+    modal.querySelector('#resetCancel').onclick =
     modal.querySelector('.reset-backdrop').onclick = () => modal.remove();
 
-    modal.querySelector('#resetConfirm').onclick = async () => {
-      const user = JSON.parse(localStorage.getItem('mudengify_user') || "null");
-      if (!user) {
-        alert('User tidak ditemukan.');
-        modal.remove();
-        return;
-      }
-      else{
-      const Res = `mudengify_result_${user.username}_${user.mapel}`;
-      const timerKey = `mudengify_timer_${user.username}_${user.mapel}`;
-      const status = `mudengify_status_${user.username}_${user.mapel}`;
-      const UserAns = `mudengify_answer_${user.username}_${user.mapel}`;
-      localStorage.removeItem(timerKey);
-      localStorage.removeItem(Res);
-      localStorage.removeItem(UserAns);
-      localStorage.removeItem(status);
-      alert('Data ujian dihapus. Mengalihkan ke token...');
+    modal.querySelector('#resetConfirm').onclick = () => {
+      const userinfo = JSON.parse(localStorage.getItem('mudengify_admin_view') || "null");
+      localStorage.removeItem(`mudengify_data_${userinfo.username}_${userinfo.mapel}`);
+      alert('Data ujian dihapus. Mengalihkan ke dashboard...');
       modal.remove();
-      location.assign('token.html')
-      }
+      location.assign('admin.html');
     };
   });
 }

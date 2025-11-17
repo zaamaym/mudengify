@@ -1,4 +1,10 @@
 // === token.js (FINAL — tanpa countdown, tapi tetap ada notifikasi cooldown) ===
+  const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+  if(quizdata.status === 'finished'){
+    alert("⚠️ Anda sudah menyelesaikan ujian ini.");
+    location.assign('submit.html'); 
+  }
+localStorage.setItem('mudengify_token', 'true'); // flag asal halaman
 // === CEK LOGIN DULU ===
 const rules = window.rules;
 const tokenBox     = document.getElementById("tokenBox");
@@ -9,8 +15,11 @@ const tokenForm    = document.getElementById("tokenForm");
 const logoutBtn    = document.getElementById("logout-btn");
 const time = rules.durasi;
 const namapel = rules.mapel;
-localStorage.setItem(`mudengify_${user.mapel}`, time);
-localStorage.setItem(`mudengify_mapel_${user.mapel}`, namapel);
+const mapelData = {
+  nama: namapel,
+  duration: time,
+};
+localStorage.setItem(`mudengify_${user.mapel}`, JSON.stringify(mapelData));
 // === POPUP NOTIF LOGIN ===
 const popup = document.getElementById("loginAlert");
 const popupMsg = document.getElementById("popupMessage");
@@ -94,9 +103,9 @@ const jumlahsoal = document.getElementById("jumlahsoal");
 const tipesoal = document.getElementById("tipesoal");
 const durasinya = document.getElementById("durasinya");
 if (namamapel) namamapel.innerHTML = `<b>Mapel:</b> ${rules.mapel ?? '-'}`;
-if (jumlahsoal) jumlahsoal.innerHTML = `<b>Jumlah Soal:</b> ${rules.soal ?? '-'}`;
+if (jumlahsoal) jumlahsoal.innerHTML = `<b>Jumlah Soal:</b> ${rules.soal + " soal"?? '-'}`;
 if (tipesoal) tipesoal.innerHTML = `<b>Tipe Soal:</b> ${rules.tipesoal ?? '-'}`;
-if (durasinya) durasinya.innerHTML = `<b>Durasi:</b> ${rules.durasi ?? '-'}`;
+if (durasinya) durasinya.innerHTML = `<b>Durasi:</b> ${rules.durasi + " menit"?? '-'}`;
 
 // === 🔐 Logout handler ===
 if (logoutBtn) {
@@ -134,8 +143,10 @@ if (logoutBtn) {
       if (user) {
         const key = `mudengify_status_${user.username}_${user.mapel}`;
         localStorage.removeItem(key);
+        localStorage.removeItem('tokenData');
+        localStorage.removeItem('mudengify_user');
       }
-      localStorage.removeItem('mudengify_user');
+      
       location.assign('index.html');
       modal.remove();
     };
@@ -151,10 +162,10 @@ if (!tokenBox || !refreshBtn || !copyBtn || !tokenInput || !tokenForm) {
 const TOKEN_TTL_MS = 1 * 60 * 1000;        // Token berlaku 1 menit
 const REFRESH_COOLDOWN_MS = 5 * 60 * 1000; // Cooldown refresh 5 menit
 
-let currentToken = generateToken();
-let tokenCreatedAt = Date.now();
-let tokenExpiry = tokenCreatedAt + TOKEN_TTL_MS;
-let lastRefreshTime = tokenCreatedAt;
+let currentToken = null;
+let tokenCreatedAt = null;
+let tokenExpiry = null;
+let lastRefreshTime = null;
 
 // === Utilitas ===
 function generateToken() {
@@ -170,6 +181,14 @@ function formatMsShort(ms) {
   const mm = Math.floor(s / 60);
   const ss = s % 60;
   return `(${pad(mm)}:${pad(ss)})`;
+}
+function saveTokenData() {
+  localStorage.setItem("tokenData", JSON.stringify({
+    currentToken,
+    tokenCreatedAt,
+    tokenExpiry,
+    lastRefreshTime
+  }));
 }
 
 function updateTokenDisplay() {
@@ -209,6 +228,12 @@ function tryRefreshToken() {
     refreshBtn.textContent = "🔄 Refresh Token";
     refreshBtn.disabled = false;
   }, 900);
+    localStorage.setItem("tokenData", JSON.stringify({
+    currentToken,
+    tokenCreatedAt,
+    tokenExpiry,
+    lastRefreshTime
+  }));
 }
 
 if (refreshBtn) refreshBtn.addEventListener("click", tryRefreshToken);
@@ -229,7 +254,6 @@ if (tokenForm) {
   tokenForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const input = tokenInput.value.trim().toUpperCase();
-    const istoken = tokenInput.value.trim();
     const now = Date.now();
     if(!input){
       showPopup("⚠️ Token belum diisi.", "warning");
@@ -247,7 +271,22 @@ if (tokenForm) {
 
     if (input === currentToken) {
       showPopupNoShake("✅ Token benar! Mengalihkan ke halaman ujian...", "success");
-      setTimeout(() => location.assign("quiz.html"), 700);
+      localStorage.removeItem(`mudengify_token`);
+      const savedData = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "null");
+      if (savedData && savedData.status === "in_progress") {
+        setTimeout(() => location.assign("quiz.html"), 700);
+      }else{
+        const quizUser = {
+          timer: null,
+          status: "in_progress",
+          startedAt: Date.now(),
+          endAt: null,
+          answers: {},
+          result: {},
+        };
+        localStorage.setItem(`mudengify_data_${user.username}_${user.mapel}`, JSON.stringify(quizUser));
+        setTimeout(() => location.assign("quiz.html"), 700);
+      }
     } else {
     showPopup("❌ Token salah", "error");
     }
@@ -256,11 +295,31 @@ if (tokenForm) {
 
 // === 🚀 Inisialisasi awal ===
 function init() {
+  const saved = JSON.parse(localStorage.getItem("tokenData") || "{}");
+
+  if (saved.currentToken) {
+    // ✔ Pakai token lama
+    currentToken = saved.currentToken;
+    tokenCreatedAt = saved.tokenCreatedAt;
+    tokenExpiry = saved.tokenExpiry;
+    lastRefreshTime = saved.lastRefreshTime;
+  } else {
+    // ✔ Token pertama kali dibuat
+    currentToken = generateToken();
+    tokenCreatedAt = Date.now();
+    tokenExpiry = tokenCreatedAt + TOKEN_TTL_MS;
+    lastRefreshTime = tokenCreatedAt;
+
+    saveTokenData();
+  }
+
   updateTokenDisplay();
-  tokenCreatedAt = Date.now();
-  tokenExpiry = tokenCreatedAt + TOKEN_TTL_MS;
-  lastRefreshTime = tokenCreatedAt;
+
+  if (Date.now() > tokenExpiry) {
+    markTokenExpiredUI();
+  }
 }
+
 init();
 
 // === ⏰ Auto-expire token ===

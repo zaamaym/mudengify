@@ -50,6 +50,13 @@ document.addEventListener("click", (e) => {
   }
 });
 
+const checkuser = JSON.parse(localStorage.getItem('mudengify_user') || "null");
+if(checkuser){
+  alert('⚠️ Anda sudah login. Logout otomatis...');
+  localStorage.removeItem('mudengify_user');
+  location.assign('index.html');
+}
+
 // === POPUP NOTIF LOGIN ===
 const popup = document.getElementById("loginAlert");
 const popupMsg = document.getElementById("popupMessage");
@@ -129,17 +136,7 @@ function hidePopup() {
   }, 300);
 }
 
-// === SINKRONISASI USER & MAPEL KE LOCALSTORAGE ===
-function syncUserAndMapel(username, mapel) {
-  const userObj = {
-    username,
-    mapel,
-    from: "demo",
-    loggedAt: Date.now(),
-  };
-  localStorage.setItem("mudengify_user", JSON.stringify(userObj));
-  localStorage.setItem("mudengify_mapel", mapel);
-}
+// === LOGIN DEMO OFFLINE ===
 // === LOGIN DEMO OFFLINE ===
 document.getElementById("loginForm").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -147,62 +144,74 @@ document.getElementById("loginForm").addEventListener("submit", (e) => {
   const usernameEl = document.getElementById("username");
   const passwordEl = document.getElementById("password");
   const selectedMapel = mapelInput.value;
+
   const username = usernameEl.value.trim();
   const password = passwordEl.value;
 
+  // === 1. VALIDASI INPUT KOSONG ===
   if (!username || !password) {
-    showPopup("⚠️ Username dan password wajib diisi!", "warning");
-    usernameEl.classList.add("shake", "highlight");
-    passwordEl.classList.add("shake", "highlight");
-    setTimeout(() => {
-      usernameEl.classList.remove("shake", "highlight");
-      passwordEl.classList.remove("shake", "highlight");
-    }, 500);
-    return;
+      showPopup("⚠️ Username dan password wajib diisi!", "warning");
+      usernameEl.classList.add("shake", "highlight");
+      passwordEl.classList.add("shake", "highlight");
+      setTimeout(() => {
+        usernameEl.classList.remove("shake", "highlight");
+        passwordEl.classList.remove("shake", "highlight");
+      }, 500);
+      return;
   }
 
-  if (!selectedMapel && username !== "admin") {
-    showPopup("🎯 Silakan pilih mata pelajaran dulu!", "warning");
-    mapelButton.classList.add("shake", "highlight");
-    setTimeout(() => mapelButton.classList.remove("shake", "highlight"), 500);
-    return;
-  }
-
-  // === VALIDASI AKUN DEMO DARI FILE TERPISAH ===
-  const match = DEMO_ACCOUNTS.find(acc => acc.username === username && acc.password === password);
+  // === 2. CARI USER DI DATABASE (AMAN) ===
+  const match = ACCOUNTS_DATA.find(acc => acc.username === username && acc.password === password);
 
   if (!match) {
-    showPopup("❌ Username atau password salah (akun demo).", "error");
-    usernameEl.classList.add("shake", "highlight-red");
-    passwordEl.classList.add("shake", "highlight-red");
-    setTimeout(() => {
-      usernameEl.classList.remove("shake", "highlight-red");
-      passwordEl.classList.remove("shake", "highlight-red");
-    }, 500);
-    return;
+      showPopup("❌ Username atau password salah (akun demo).", "error");
+      usernameEl.classList.add("shake", "highlight-red");
+      passwordEl.classList.add("shake", "highlight-red");
+      setTimeout(() => {
+        usernameEl.classList.remove("shake", "highlight-red");
+        passwordEl.classList.remove("shake", "highlight-red");
+      }, 500);
+      return;
   }
 
-  // Simpan user ke localStorage
+  const actype = match.role;
+
+  // === 3. MAPEL WAJIB untuk USER BIASA ===
+  if (!selectedMapel && actype !== "admin") {
+      showPopup("🎯 Silakan pilih mata pelajaran dulu!", "warning");
+      mapelButton.classList.add("shake", "highlight");
+      setTimeout(() => mapelButton.classList.remove("shake", "highlight"), 500);
+      return;
+  }
+
+  // === 4. SIMPAN USER YG VALID ===
   const userObj = {
-    username,
-    mapel: selectedMapel,
-    from: "demo",
-    loggedAt: Date.now(),
+      username,
+      mapel: selectedMapel,
+      from: actype,
+      loggedAt: Date.now(),
   };
+
   localStorage.setItem("mudengify_user", JSON.stringify(userObj));
+  const user = JSON.parse(localStorage.getItem("mudengify_user") || "null");
+  // === 5. STATUS MAPEL ===
+  const quizdata = JSON.parse(localStorage.getItem(`mudengify_data_${user.username}_${user.mapel}`) || "{}");
+  const status = quizdata.status;
 
-  const statusKey = `mudengify_status_${username}_${selectedMapel}`;
-  const status = localStorage.getItem(statusKey);
-
-  syncUserAndMapel(username, selectedMapel);
-  if (username === "admin") {
-    showPopupNoShake("✅ Login Admin berhasil!", "success");
-    setTimeout(() => location.assign("admin.html"), 600);
-  }else if (status === "finished") {
-    showPopupNoShake("✅ Anda sudah menyelesaikan ujian ini! Mengalihkan ke hasil...", "success");
-    setTimeout(() => location.assign("submit.html"), 600);
-  } else {
-    showPopupNoShake("✅ Login berhasil! Mengalihkan ke token...", "success");
-    setTimeout(() => location.assign("token.html"), 600);
+  // === 6. REDIRECT ===
+  if (actype === "admin") {
+      showPopupNoShake("✅ Login Admin berhasil!", "success");
+      user.mapel = "admin";
+      localStorage.setItem("mudengify_user", JSON.stringify(user));
+      setTimeout(() => location.assign("admin.html"), 600);
+  }
+  else if (status === "finished") {
+      showPopupNoShake("✅ Anda sudah menyelesaikan ujian ini! Mengalihkan ke hasil...", "success");
+      setTimeout(() => location.assign("submit.html"), 600);
+  }
+  else {
+      showPopupNoShake("✅ Login berhasil! Mengalihkan ke token...", "success");
+      setTimeout(() => location.assign("token.html"), 600);
   }
 });
+
