@@ -61,16 +61,15 @@ document.addEventListener("DOMContentLoaded", () => {
         item.className = "finder-item";
         const isFolder = key.endsWith("/");
         const icon = isFolder
-  ? "📁"
-  : key.match(/\.(png|jpg|gif|jpeg|webp)$/) ? "🖼️"
-  : key.match(/\.(mp3|ogg|wav)$/) ? "🎵"
-  : key.match(/\.(mp4|webm|mov|mkv|ogg)$/) ? "🎬"
-  : key.endsWith(".pdf") ? "📕"
-  : key.endsWith(".html") ? "🌐"
-  : key.endsWith(".js") ? "🧠"
-  : key.endsWith(".css") ? "🎨"
-  : "📄";
-
+          ? "📁"
+          : key.endsWith(".html") ? "🌐"
+          : key.endsWith(".pdf") ? "📕"
+          : key.match(/\.(mp4|webm)$/) ? "🎬"
+          : key.endsWith(".js") ? "🧠"
+          : key.endsWith(".css") ? "🎨"
+          : key.match(/\.(png|jpg|gif|jpeg)$/) ? "🖼️"
+          : key.match(/\.(mp3|ogg|wav)$/) ? "🎵"
+          : "📄";
 
         item.innerHTML = `${icon}<span>${key}</span>`;
         item.onclick = () => {
@@ -110,181 +109,114 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // === 📄 Muat file ===
-    // === 📄 Muat file ===
-async loadFile(name, path) {
-  this.body.classList.add("file-open");
-  this.pathDisplay.textContent = `${this.currentPath.join(" / ")} / ${name}`;
-  this.content.innerHTML = `<div class='loading'>⏳ Memuat file...</div>`;
+    async loadFile(name, path) {
+      this.body.classList.add("file-open");
+      this.pathDisplay.textContent = `${this.currentPath.join(" / ")} / ${name}`;
+      this.content.innerHTML = `<div class='loading'>⏳ Memuat file...</div>`;
 
-  const ext = name.split(".").pop().toLowerCase();
+      const ext = name.split(".").pop().toLowerCase();
+      if (ext === "pdf") {
+        this.content.innerHTML = `
+          <div class="pdf-container">
+            <iframe id="pdfFrame" src="${path}" frameborder="0"></iframe>
+            <button class="pdf-fullscreen">⛶ Full Screen</button>
+          </div>
+        `;
 
-  // =============================
-  // 🖼️ IMAGE VIEWER (Zoom + Drag)
-  // =============================
-  if (["png", "jpg", "gif", "jpeg", "webp"].includes(ext)) {
+        const frame = document.getElementById("pdfFrame");
+        const btn = document.querySelector(".pdf-fullscreen");
 
-    this.content.innerHTML = `
-      <div class="img-viewer-zoom">
-        <img id="zoomImg" src="${path}" alt="${name}">
-        <p style="text-align:center;color:#ccc;margin-top:8px;">${name}</p>
-      </div>
-    `;
+        btn.onclick = () => {
+          if (frame.requestFullscreen) frame.requestFullscreen();
+        };
+
+        return;
+      }
+
+      if (["mp4", "webm", "ogg"].includes(ext)) {
+        this.content.innerHTML = `
+          <div style="text-align:center; padding:20px;">
+            <video controls style="width:95%; max-width:900px;">
+              <source src="${path}" type="video/${ext}">
+              Browser kamu tidak mendukung pemutar video.
+            </video>
+            <p style="color:#ccc;margin-top:10px;">${name}</p>
+          </div>
+        `;
+        return;
+      }
+      //   🖼️ Gambar
+      if (["png", "jpg", "gif", "jpeg"].includes(ext)) {
+        this.content.innerHTML = `
+  <div class="img-zoom-container">
+    <img id="zoomImg" src="${path}" alt="${name}">
+  </div>
+  <p style="text-align:center;color:#ccc;margin-top:8px;">${name}</p>
+`;
 
     const img = document.getElementById("zoomImg");
     let scale = 1;
-    let pos = { x: 0, y: 0 };
-    let dragging = false;
-    let start = { x: 0, y: 0 };
+    let posX = 0, posY = 0;
+    let dragging = false, startX, startY;
 
-    // zoom
-    this.content.onwheel = (e) => {
+    img.style.transformOrigin = "center center";
+
+    img.addEventListener("wheel", (e) => {
       e.preventDefault();
       scale += e.deltaY * -0.001;
-      scale = Math.min(Math.max(0.5, scale), 5);
-      img.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${scale})`;
-    };
-
-    // mouse drag start
-    img.onmousedown = (e) => {
-      dragging = true;
-      start.x = e.clientX - pos.x;
-      start.y = e.clientY - pos.y;
-    };
-
-    // drag move
-    window.onmousemove = (e) => {
-      if (!dragging) return;
-      pos.x = e.clientX - start.x;
-      pos.y = e.clientY - start.y;
-      img.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${scale})`;
-    };
-
-    window.onmouseup = () => (dragging = false);
-
-    return;
-  }
-
-  // =============================
-  // 🎵 AUDIO PLAYER
-  // =============================
-  if (["mp3", "ogg", "wav"].includes(ext)) {
-    this.content.innerHTML = `
-      <div style="text-align:center; padding:20px;">
-        <p style="color:#ccc;">${name}</p>
-        <audio controls style="width:90%; max-width:600px;">
-          <source src="${path}" type="audio/${ext}">
-        </audio>
-      </div>
-    `;
-    return;
-  }
-
-  // =============================
-  // 🎬 VIDEO PLAYER
-  // =============================
-  if (["mp4", "webm", "mov", "mkv", "ogg"].includes(ext)) {
-    this.content.innerHTML = `
-      <div style="text-align:center; padding:15px;">
-        <video controls style="max-width:100%; border-radius:10px;">
-          <source src="${path}" type="video/${ext}">
-        </video>
-        <p style="color:#ccc;">${name}</p>
-      </div>
-    `;
-    return;
-  }
-
-  // =============================
-  // 📕 PDF VIEWER + FULLSCREEN
-  // =============================
-  if (ext === "pdf") {
-    this.content.innerHTML = `
-      <div class="pdf-view-container">
-        <div class="pdf-toolbar">
-          <button id="pdfPrev">⬅️</button>
-          <span id="pdfPageInfo">1 / ?</span>
-          <button id="pdfNext">➡️</button>
-          <button id="pdfZoomOut">➖</button>
-          <button id="pdfZoomIn">➕</button>
-          <button id="pdfFullscreen">⛶ Fullscreen</button>
-        </div>
-        <canvas id="pdfCanvas"></canvas>
-      </div>
-    `;
-
-    let pdfDoc = null;
-    let pageNum = 1;
-    let scale = 1.2;
-    const canvas = document.getElementById("pdfCanvas");
-    const ctx = canvas.getContext("2d");
-
-    pdfjsLib.getDocument(path).promise.then((doc) => {
-      pdfDoc = doc;
-      document.getElementById("pdfPageInfo").textContent = `1 / ${pdfDoc.numPages}`;
-      renderPage(pageNum);
+      scale = Math.min(Math.max(1, scale), 4);
+      img.style.transform = `scale(${scale}) translate(${posX}px, ${posY}px)`;
     });
 
-    const renderPage = (num) => {
-      pdfDoc.getPage(num).then((page) => {
-        const viewport = page.getViewport({ scale });
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-        page.render({ canvasContext: ctx, viewport });
-      });
-    };
+    img.addEventListener("mousedown", (e) => {
+      dragging = true;
+      startX = e.clientX - posX;
+      startY = e.clientY - posY;
+    });
 
-    document.getElementById("pdfPrev").onclick = () => {
-      if (pageNum > 1) pageNum--;
-      document.getElementById("pdfPageInfo").textContent = `${pageNum} / ${pdfDoc.numPages}`;
-      renderPage(pageNum);
-    };
+    window.addEventListener("mouseup", () => dragging = false);
 
-    document.getElementById("pdfNext").onclick = () => {
-      if (pageNum < pdfDoc.numPages) pageNum++;
-      document.getElementById("pdfPageInfo").textContent = `${pageNum} / ${pdfDoc.numPages}`;
-      renderPage(pageNum);
-    };
+    window.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      posX = e.clientX - startX;
+      posY = e.clientY - startY;
+      img.style.transform = `scale(${scale}) translate(${posX}px, ${posY}px)`;
+    });
 
-    document.getElementById("pdfZoomIn").onclick = () => {
-      scale = Math.min(scale + 0.2, 4);
-      renderPage(pageNum);
-    };
+      }
 
-    document.getElementById("pdfZoomOut").onclick = () => {
-      scale = Math.max(scale - 0.2, 0.5);
-      renderPage(pageNum);
-    };
+      // 🎵 Audio
+      if (["mp3", "ogg", "wav"].includes(ext)) {
+        this.content.innerHTML = `
+          <div style="text-align:center; padding:20px;">
+            <p style="color:#ccc;">${name}</p>
+            <audio controls style="width:90%; max-width:600px;">
+              <source src="${path}" type="audio/${ext}">
+              Browser kamu tidak mendukung pemutar audio.
+            </audio>
+          </div>`;
+        return;
+      }
 
-    document.getElementById("pdfFullscreen").onclick = () => {
-      canvas.requestFullscreen?.();
-    };
+      // 📜 File text
+      try {
+        const res = await fetch(path);
+        if (!res.ok) throw new Error("Gagal fetch file");
+        const text = await res.text();
 
-    return;
+        const lang = ext === "js" ? "javascript" :
+                     ext === "css" ? "css" :
+                     ext === "html" ? "html" : "plaintext";
+
+        this.content.innerHTML = `<pre><code id="codeContent" class="language-${lang}"></code></pre>`;
+        const codeContent = document.getElementById("codeContent");
+        codeContent.textContent = text;
+        hljs.highlightElement(codeContent);
+      } catch (err) {
+        this.content.innerHTML = `<pre><code class="language-plaintext">// ⚠️ Gagal memuat file: ${err.message}</code></pre>`;
+      }
+    }
   }
-
-  // =============================
-  // 📜 TEXT FILE (JS/CSS/HTML/etc.)
-  // =============================
-  try {
-    const res = await fetch(path);
-    if (!res.ok) throw new Error("Gagal memuat file");
-    const text = await res.text();
-
-    const lang =
-      ext === "js" ? "javascript" :
-      ext === "css" ? "css" :
-      ext === "html" ? "html" : "plaintext";
-
-    this.content.innerHTML = `<pre><code id="codeContent" class="language-${lang}"></code></pre>`;
-    const codeContent = document.getElementById("codeContent");
-    codeContent.textContent = text;
-    hljs.highlightElement(codeContent);
-
-  } catch (err) {
-    this.content.innerHTML = `<pre><code>// ⚠️ Error: ${err.message}</code></pre>`;
-  }
-}
-
 
   // === 📁 Data struktur file ===
   const files = {
@@ -319,12 +251,19 @@ async loadFile(name, path) {
         "party_popper2.ogg": "assets/sounds/party_popper2.ogg",
         "party_popper3.ogg": "assets/sounds/party_popper3.ogg",
         "objective_success.ogg": "assets/sounds/objective_success.ogg"
+      },
+      "pdf/": {
+        "mudengify.pdf": "assets/pdf/mudengify.pdf"
       }
     },
     "data/":{
       "bahasa-indonesia/" : {
         "quiz_data.js" : "data/bahasa-indonesia/quiz_data.js",
         "rules.js" : "data/bahasa-indonesia/rules.js"
+      },
+      "tester/" : {
+        "quiz_data.js" : "data/tester/quiz_data.js",
+        "rules.js" : "data/tester/rules.js"
       }
     },
     "index.html": "index.html",
