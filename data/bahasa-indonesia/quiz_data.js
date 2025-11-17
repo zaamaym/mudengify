@@ -637,7 +637,7 @@ window.QUIZ_DATA = [
   "options": ["Benar", "Salah"],
   "statements": [
     { "text": "Semua jenis semut dalam koloni memiliki tugas yang sama dalam mencari makanan.", "answer": "Salah" },
-    { "text": "Feromon berfungsi sebagai alat komunikasi utama antarindividu semut.", "answer": "Tidak Benar" },
+    { "text": "Feromon berfungsi sebagai alat komunikasi utama antarindividu semut.", "answer": "Benar" },
     { "text": "Teks menegaskan bahwa perilaku semut tidak memiliki relevansi dengan perkembangan teknologi manusia.", "answer": "Salah" }
   ],"explanation": [
       "<b>Jawab: Salah - Benar - Salah</b>\n\nKarena itu jawabannya"
