@@ -231,6 +231,9 @@ document.addEventListener("DOMContentLoaded", () => {
         "token.css": "assets/css/token.css",
       },
       "js/": {
+        "dataakun/": {
+          "accounts.js": "assets/dataakun/accounts.js"
+        },
         "main.js": "assets/js/main.js",
         "home.js": "assets/js/home.js",
         "quiz_logic.js": "assets/js/quiz_logic.js",
@@ -288,3 +291,4 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
 });
+
