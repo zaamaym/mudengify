@@ -389,9 +389,8 @@ if (replayEffectBtn) replayEffectBtn.addEventListener('click', () => triggerConf
 const shareBtn = document.getElementById('shareBtn');
 if (shareBtn) {
   shareBtn.addEventListener('click', async () => {
-    const user = JSON.parse(localStorage.getItem('mudengify_user') || "null");
-    const Res = `mudengify_answer_${user.username}_${user.mapel}`;
-    const result = JSON.parse(localStorage.getItem(Res));
+    const Res = quizdata.answer;
+    const result = quizdata.result;
     if (!result) return alert('Hasil ujian tidak ditemukan.');
 
     const captureArea = document.querySelector('.result-card');
